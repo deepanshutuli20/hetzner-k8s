@@ -185,15 +185,24 @@ done
 # Generating inventory.yml file
 echo "[jumpserver]" > inventory.yml
 echo "jumpserver ansible_host=$jumpserver_ip ansible_user=root" >> inventory.yml
+echo "" >> inventory.yml
 
 echo "[master]" >> inventory.yml
 for (( i=1; i<=${#master_ips[@]}; i++ )); do
     echo "master$i ansible_host=${master_ips[$i-1]} ansible_user=root" >> inventory.yml
 done
+echo "" >> inventory.yml
 
 echo "[worker]" >> inventory.yml
 for (( i=1; i<=${#worker_ips[@]}; i++ )); do
     echo "worker$i ansible_host=${worker_ips[$i-1]} ansible_user=root" >> inventory.yml
 done
+echo "" >> inventory.yml
+
+echo "[master:vars]" >> inventory.yml
+echo "ansible_ssh_common_args='-o ProxyCommand=\"ssh -W %h:%p -q -i $private_key root@$jumpserver_ip\" -p 22 -i $private_key'" >> inventory.yml
+echo "" >> inventory.yml
+echo "[worker:vars]" >> inventory.yml
+echo "ansible_ssh_common_args='-o ProxyCommand=\"ssh -W %h:%p -q -i $private_key root@$jumpserver_ip\" -p 22 -i $private_key'" >> inventory.yml
 
 echo "Cluster setup complete and inventory.yml generated."

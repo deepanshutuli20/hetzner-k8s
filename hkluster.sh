@@ -58,15 +58,66 @@ else
     echo "Invalid response, delete the ssh-key and start over"
 fi
 
-#Creating a Server
-curl -X POST \
-    -H "Authorization: Bearer $api_token" \
-    -H "Content-Type: application/json" \
-    -d '{
-        "name": "sample-server",
-        "server_type": "cpx11", 
-        "image": "ubuntu-22.04",
-        "ssh_keys": ["hkluster-key"],
-        "location": "'$region'"
-    }' \
-    https://api.hetzner.cloud/v1/servers
+# Prompt for cluster availability mode
+echo "Choose Cluster Availability Mode"
+echo "[1] Low Availability Mode (1 master, 2 workers)"
+echo "[2] High Availability Mode (3 masters, 3 workers)"
+read availability
+
+# Variables for server names
+master_count=1
+worker_count=1
+if [ "$availability" -eq 1 ]; then
+    total_masters=1
+    total_workers=2
+elif [ "$availability" -eq 2 ]; then
+    total_masters=3
+    total_workers=3
+else
+    echo "Invalid availability mode"
+    exit 1
+fi
+
+# Array to store server IPs
+declare -a master_ips
+declare -a worker_ips
+
+# Function to create servers
+create_server() {
+    server_name=$1
+    curl -s -X POST \
+        -H "Authorization: Bearer $api_token" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "name": "'$server_name'",
+            "server_type": "cpx11",
+            "image": "ubuntu-22.04",
+            "ssh_keys": ["hkluster-key"],
+            "location": "'$region'"
+        }' https://api.hetzner.cloud/v1/servers | jq -r '.server.public_net.ipv4.ip'
+}
+
+# Creating masters
+for (( i=1; i<=$total_masters; i++ )); do
+    ip=$(create_server "master-$i")
+    master_ips+=($ip)
+done
+
+# Creating workers
+for (( i=1; i<=$total_workers; i++ )); do
+    ip=$(create_server "worker-$i")
+    worker_ips+=($ip)
+done
+
+# Generating inventory.yml file
+echo "[master]" > inventory.yml
+for (( i=1; i<=${#master_ips[@]}; i++ )); do
+    echo "master$i ansible_host=${master_ips[$i-1]} ansible_user=root" >> inventory.yml
+done
+
+echo "[worker]" >> inventory.yml
+for (( i=1; i<=${#worker_ips[@]}; i++ )); do
+    echo "worker$i ansible_host=${worker_ips[$i-1]} ansible_user=root" >> inventory.yml
+done
+
+echo "Cluster setup complete and inventory.yml generated."

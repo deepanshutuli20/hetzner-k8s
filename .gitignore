@@ -1,4 +1,4 @@
-./key
-./key.pub
-./response.txt
+key
+key.pub
+response.txt
 inventory.yml

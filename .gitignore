@@ -3,4 +3,5 @@ key.pub
 response.txt
 node-token
 playbooks/variables.yml
+kubeconfig
 inventory.yml

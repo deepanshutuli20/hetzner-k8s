@@ -1,0 +1,59 @@
+---
+- name: Enable IP forwarding and setup NAT on jumpserver
+  hosts: jumpserver
+  become: true
+  tasks:
+    - name: Enable IP forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        state: present
+        sysctl_set: yes
+
+    - name: Set up NAT using iptables
+      ansible.builtin.command: iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+
+    - name: Save iptables rules to a file
+      ansible.builtin.shell: iptables-save > /etc/iptables.rules
+
+    - name: Create a systemd service to load iptables rules on boot
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/iptables-restore.service
+        content: |
+          [Unit]
+          Description=Restore iptables rules
+          Before=network-pre.target
+          Wants=network-pre.target
+          DefaultDependencies=no
+
+          [Service]
+          Type=oneshot
+          ExecStart=/sbin/iptables-restore /etc/iptables.rules
+          ExecReload=/sbin/iptables-restore /etc/iptables.rules
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd daemon to recognize the new service
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Enable and start the iptables-restore service
+      ansible.builtin.systemd:
+        name: iptables-restore.service
+        enabled: yes
+        state: started
+
+- name: Configure default route and DNS on master and worker nodes
+  hosts: master, worker
+  become: true
+  tasks:
+    - name: Add default route via 10.0.0.1
+      ansible.builtin.command: ip route add default via 10.0.0.1
+
+    - name: Replace nameserver 127.0.0.53 with 8.8.8.8 in /etc/resolv.conf
+      ansible.builtin.replace:
+        path: /etc/resolv.conf
+        regexp: 'nameserver 127\.0\.0\.53'
+        replace: 'nameserver 8.8.8.8'

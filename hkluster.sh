@@ -140,6 +140,16 @@ if [ -z "$jumpserver_ip" ]; then
     exit 1
 fi
 
+#Create a Function add ip route to the network 
+
+curl -X POST "https://api.hetzner.cloud/v1/networks/$network_id/actions/add_route" \
+-H "Authorization: Bearer $api_token" \
+-H "Content-Type: application/json" \
+-d '{
+  "destination": "0.0.0.0/0",
+  "gateway": "10.0.1.1"
+}'
+
 # Function to create master and worker servers in the private network without public IPs
 create_server() {
     server_name=$1
@@ -180,6 +190,7 @@ for (( i=1; i<=$total_workers; i++ )); do
         exit 1
     fi
     worker_ips+=($ip)
+    last_worker_ip=${worker_ips[${#worker_ips[@]}-1]}
 done
 
 # Generating inventory.yml file
@@ -199,10 +210,85 @@ for (( i=1; i<=${#worker_ips[@]}; i++ )); do
 done
 echo "" >> inventory.yml
 
+
 echo "[master:vars]" >> inventory.yml
 echo "ansible_ssh_common_args='-o ProxyCommand=\"ssh -W %h:%p -q -i $private_key root@$jumpserver_ip\" -p 22 -i $private_key'" >> inventory.yml
 echo "" >> inventory.yml
 echo "[worker:vars]" >> inventory.yml
 echo "ansible_ssh_common_args='-o ProxyCommand=\"ssh -W %h:%p -q -i $private_key root@$jumpserver_ip\" -p 22 -i $private_key'" >> inventory.yml
 
-echo "Cluster setup complete and inventory.yml generated."
+echo "Inventory.yml generated."
+echo "Last ip is $last_worker_ip"
+echo "Checking Server Reachability"
+
+## Generate function to check the reachability of the servers 
+# Function to ping the jumphost directly
+ping_jumphost() {
+  ping -c 4 $jumpserver_ip > /dev/null 2>&1
+  return $?
+}
+
+# Function to ping the private server through the jumphost
+ping_private_server() {
+  ssh -i $private_key -o StrictHostKeyChecking=no root@$jumpserver_ip "ping -c 4 $last_worker_ip" > /dev/null 2>&1
+  return $?
+}
+
+# Set the maximum time to keep trying (10 minutes = 600 seconds)
+TIMEOUT=600
+START_TIME=$(date +%s)
+
+# Step 1: Check if jumphost is reachable
+echo "Checking if jumphost is reachable..."
+
+while true; do
+  # Calculate the elapsed time
+  CURRENT_TIME=$(date +%s)
+  ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+  # Check if we've hit the 10-minute mark
+  if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+    echo "Timeout: Jumphost still unreachable after 10 minutes."
+    exit 1
+  fi
+
+  # Attempt to ping the jumphost
+  ping_jumphost
+  if [ $? -eq 0 ]; then
+    echo "Jumphost reachable"
+    break
+  else
+    echo "Jumphost unreachable, retrying in 5 seconds..."
+    sleep 5  # Wait for 5 seconds before trying again
+  fi
+done
+
+# Step 2: Check if private server is reachable through the jumphost
+echo "Checking if private server is reachable through the jumphost..."
+
+START_TIME=$(date +%s)  # Reset the start time for private server check
+
+while true; do
+  # Calculate the elapsed time
+  CURRENT_TIME=$(date +%s)
+  ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+  # Check if we've hit the 10-minute mark
+  if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+    echo "Timeout: Private server still unreachable after 10 minutes."
+    exit 1
+  fi
+
+  # Attempt to ping the private server through the jumphost
+  ping_private_server
+  if [ $? -eq 0 ]; then
+    echo "Private server reachable"
+    break
+  else
+    echo "Private server unreachable, retrying in 5 seconds..."
+    sleep 5  # Wait for 5 seconds before trying again
+  fi
+done
+
+# Running ansible playbook to configure NAT Gateway on private nodes
+ansible-playbook -i inventory.yml playbooks/set_nat.yml --private-key $private_key

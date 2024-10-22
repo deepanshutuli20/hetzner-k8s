@@ -1,0 +1,35 @@
+---
+- name: Configuring RKE2 on Worker Nodes
+  hosts: worker
+  become: true
+  vars_files:
+    - variables.yml
+  gather_facts: true
+  ignore_errors: yes
+  tasks:
+    - name: Download and install RKE2
+      shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
+
+    - name: Enable rke2-agent service
+      systemd:
+        name: rke2-agent.service
+        enabled: yes
+
+    - name: Create RKE2 config directory
+      file:
+        path: /etc/rancher/rke2/
+        state: directory
+        mode: '0755'
+
+    - name: Add RKE2 configuration
+      copy:
+        dest: /etc/rancher/rke2/config.yaml
+        content: |
+          server: https://10.0.1.1:9345
+          token: "{{ node_token }}"
+          node-ip: "{{ ansible_default_ipv4.address }}"
+
+    - name: Start rke2-agent service
+      systemd:
+        name: rke2-agent.service
+        state: started

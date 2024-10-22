@@ -1,11 +1,13 @@
 ---
-- name: Configure RKE2 on main master node
-  hosts: master1
+- name: Configure RKE2 on remaining master nodes
+  hosts: master2, master3
   become: true
   vars:
     rke2_version: "https://get.rke2.io"
     rke2_server_service: "rke2-server.service"
     config_directory: "/etc/rancher/rke2/"
+  vars_files:
+    - variables.yml
   tasks:
     - name: Gather facts
       ansible.builtin.setup:
@@ -41,17 +43,20 @@
       ansible.builtin.copy:
         dest: "{{ config_directory }}/config.yaml"
         content: |
-          node-name: "{{ ansible_hostname }}"
-          node-ip: "{{ ansible_default_ipv4.address }}"
-          cloud-provider-name: external
+          tls-san:
+            - "10.0.1.1"
+            - "127.0.0.1"
+            - "localhost"
           cluster-cidr: "10.244.1.0/16"
+          cloud-provider-name: external
+          node-ip: "{{ ansible_default_ipv4.address }}"
+          node-name: "{{ ansible_hostname }}"
           disable:
             - cloud-controller
             - rke2-canal
             - rke2-ingress-nginx
-          tls-san:
-            - 10.0.1.1
-            - master-1
+          token: "{{ node_token }}"
+          server: "https://10.0.1.1:9345"
           cni: cilium
 
     - name: Start RKE2 server service

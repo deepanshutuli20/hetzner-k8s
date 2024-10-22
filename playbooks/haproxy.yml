@@ -1,0 +1,31 @@
+---
+- name: Configure HAProxy on Jumpserver
+  hosts: jumpserver
+  become: yes
+  tasks:
+
+    - name: Install HAProxy
+      apt:
+        name: haproxy
+        state: present
+        update_cache: yes
+
+    - name: Upload haproxy.cfg from template
+      template:
+        src: haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Restart HAProxy to apply changes
+      systemd:
+        name: haproxy
+        state: restarted
+        enabled: yes
+
+    - name: Verify HAProxy service is running
+      systemd:
+        name: haproxy
+        state: started
+        enabled: yes

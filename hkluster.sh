@@ -293,6 +293,9 @@ done
 # Running ansible playbook to configure NAT Gateway on private nodes
 ansible-playbook -i inventory.yml playbooks/set_nat.yml --private-key $private_key
 
+# Running Playbook to configure load-balancing on haproxy-server
+ansible-playbook -i inventory.yml playbooks/haproxy.yml --private-key $private_key
+
 #Running ansbible playbook to configure the primary master server and retrieve node_token
 ansible-playbook -i inventory.yml playbooks/master_main.yml --private-key $private_key
 
@@ -303,3 +306,37 @@ scp -i $private_key \
     -o StrictHostKeyChecking=no \
     -o ProxyCommand="ssh -i $private_key -W %h:%p root@$jumpserver_ip -o StrictHostKeyChecking=no" \
     root@$master_main_ip:/var/lib/rancher/rke2/server/node-token .
+node_token=$(cat ./node-token)
+
+#Copy the kubeconfig file to later interact with the cluster
+scp -i $private_key \
+    -o StrictHostKeyChecking=no \
+    -o ProxyCommand="ssh -i $private_key -W %h:%p root@$jumpserver_ip -o StrictHostKeyChecking=no" \
+    root@$master_main_ip:/etc/rancher/rke2/rke2.yaml ./kubeconfig
+    
+#Check For Pre-Existing Variable FIles
+if [ -f playbooks/variables.yml ]; then
+    truncate -s 0 playbooks/variables.yml
+fi
+
+# Configuring ansible variables file
+echo "node_token: $node_token" > playbooks/variables.yml
+
+#Configuring other master nodes in the cluster in case of high availability
+if [ "$availability" -eq 2 ]; then
+    ansible-playbook -i inventory.yml playbooks/master_node.yml --private-key $private_key
+fi
+
+#Configuring Worker Nodes
+ansible-playbook -i inventory.yml playbooks/worker_node.yml --private-key $private_key
+
+#Configuring ssh config entry for jumpserver
+echo -e "Host jumpserver\n\tHostName $jumpserver_ip\n\tIdentityFile $private_key\n\tUser root" >> ~/.ssh/config
+
+#Some Messages
+echo "Run export KUBECONFIG=./kubeconfig"
+echo "The run connect.sh to connect to your kubernetes cluster"
+echo "The Following is an output of kubectl get nodes command"
+./connect.sh
+export KUBECONFIG=./kubeconfig
+kubectl get nodes

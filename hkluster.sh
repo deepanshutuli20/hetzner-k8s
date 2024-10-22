@@ -158,7 +158,7 @@ create_server() {
         -H "Content-Type: application/json" \
         -d '{
             "name": "'$server_name'",
-            "server_type": "cpx11",
+            "server_type": "cpx21",
             "image": "ubuntu-22.04",
             "ssh_keys": ["hkluster-key"],
             "location": "'$region'",
@@ -292,3 +292,14 @@ done
 
 # Running ansible playbook to configure NAT Gateway on private nodes
 ansible-playbook -i inventory.yml playbooks/set_nat.yml --private-key $private_key
+
+#Running ansbible playbook to configure the primary master server and retrieve node_token
+ansible-playbook -i inventory.yml playbooks/master_main.yml --private-key $private_key
+
+master_main_ip=$(ansible-inventory -i inventory.yml --host master1 | grep "ansible_host" | cut -d ":" -f 2 | tr -d '," ')
+
+#Copy the node-token to enable joining the cluster
+scp -i $private_key \
+    -o StrictHostKeyChecking=no \
+    -o ProxyCommand="ssh -i $private_key -W %h:%p root@$jumpserver_ip -o StrictHostKeyChecking=no" \
+    root@$master_main_ip:/var/lib/rancher/rke2/server/node-token .

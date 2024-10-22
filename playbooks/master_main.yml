@@ -1,0 +1,63 @@
+---
+- name: Configure RKE2 on Ubuntu 22.04 servers
+  hosts: master1
+  become: true
+  vars:
+    rke2_version: "https://get.rke2.io"
+    rke2_server_service: "rke2-server.service"
+    config_directory: "/etc/rancher/rke2/"
+  tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+        # This will gather only the default facts. If more facts are needed,
+        # remove the 'gather_subset' line.
+        gather_subset: 
+          - '!all'
+          - '!any'
+          - 'network'
+          - 'hardware'
+    
+    - name: Download and execute the RKE2 install script
+      ansible.builtin.shell:
+        cmd: "curl -sfL {{ rke2_version }} | sh -"
+      args:
+        executable: /bin/bash
+      register: rke2_install_result
+      changed_when: "'is already installed and is not going to be installed' not in rke2_install_result.stdout"
+
+    - name: Enable RKE2 server service
+      ansible.builtin.systemd:
+        name: "{{ rke2_server_service }}"
+        enabled: yes
+      when: rke2_install_result is changed
+
+    - name: Create RKE2 config directory
+      ansible.builtin.file:
+        path: "{{ config_directory }}"
+        state: directory
+        mode: '0755'
+
+    - name: Add configuration to config.yaml
+      ansible.builtin.copy:
+        dest: "{{ config_directory }}/config.yaml"
+        content: |
+          node-name: "{{ ansible_hostname }}"
+          node-ip: "{{ ansible_default_ipv4.address }}"
+          cloud-provider-name: external
+          cluster-cidr: "10.244.1.0/16"
+          disable:
+            - cloud-controller
+            - rke2-canal
+            - rke2-ingress-nginx
+          tls-san:
+            - 10.0.1.1
+            - master-1
+          cni: cilium
+
+    - name: Start RKE2 server service
+      ansible.builtin.systemd:
+        name: "{{ rke2_server_service }}"
+        state: started
+        enabled: yes
+      when: rke2_install_result is changed
+

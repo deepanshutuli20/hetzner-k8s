@@ -336,7 +336,10 @@ echo -e "Host jumpserver\n\tHostName $jumpserver_ip\n\tIdentityFile $private_key
 #Some Messages
 echo "Run export KUBECONFIG=./kubeconfig"
 echo "The run connect.sh to connect to your kubernetes cluster"
+echo "To Disconnet from the cluster network run disconnect.sh"
 echo "The Following is an output of kubectl get nodes command"
-./connect.sh
+ssh -L 6443:10.0.1.1:6443 -N jumpserver 2>&1 > /dev/null &
+sleep 5
 export KUBECONFIG=./kubeconfig
 kubectl get nodes
+./disconnect.sh > /dev/null 2>&1 &

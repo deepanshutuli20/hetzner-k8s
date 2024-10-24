@@ -52,8 +52,14 @@
     - name: Add default route via 10.0.0.1
       ansible.builtin.command: ip route add default via 10.0.0.1
 
+    - name: Stop systemd-resolved service
+      ansible.builtin.systemd:
+        name: systemd-resolved
+        state: stopped
+        enabled: no
+
     - name: Replace nameserver 127.0.0.53 with 8.8.8.8 in /etc/resolv.conf
       ansible.builtin.replace:
-        path: /etc/resolv.conf
+        path: /run/systemd/resolve/stub-resolv.conf
         regexp: 'nameserver 127\.0\.0\.53'
         replace: 'nameserver 8.8.8.8'

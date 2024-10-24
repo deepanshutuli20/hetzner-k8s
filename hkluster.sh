@@ -21,6 +21,8 @@ else
     exit 1
 fi
 
+# echo "Enter API Token"
+# read api_token
 # Hetzner API token
 api_token=$(pass show hetzner/api-token)
 

@@ -313,6 +313,9 @@ scp -i $private_key \
     -o StrictHostKeyChecking=no \
     -o ProxyCommand="ssh -i $private_key -W %h:%p root@$jumpserver_ip -o StrictHostKeyChecking=no" \
     root@$master_main_ip:/etc/rancher/rke2/rke2.yaml ./kubeconfig
+
+#Adjusting permissions on kubeconfig
+chmod 600 ./kubeconfig
     
 #Check For Pre-Existing Variable FIles
 if [ -f playbooks/variables.yml ]; then
@@ -333,13 +336,22 @@ ansible-playbook -i inventory.yml playbooks/worker_node.yml --private-key $priva
 #Configuring ssh config entry for jumpserver
 echo -e "Host jumpserver\n\tHostName $jumpserver_ip\n\tIdentityFile $private_key\n\tUser root" >> ~/.ssh/config
 
+sleep 10
 #Some Messages
-echo "Run export KUBECONFIG=./kubeconfig"
-echo "The run connect.sh to connect to your kubernetes cluster"
-echo "To Disconnet from the cluster network run disconnect.sh"
-echo "The Following is an output of kubectl get nodes command"
 ssh -L 6443:10.0.1.1:6443 -N jumpserver 2>&1 > /dev/null &
 sleep 5
 export KUBECONFIG=./kubeconfig
+kubectl -n kube-system create secret generic hcloud --from-literal=token=$api_token --from-literal=network=kubernetes-cluster
+helm repo add hcloud https://charts.hetzner.cloud
+helm repo update hcloud
+helm install hccm hcloud/hcloud-cloud-controller-manager -n kube-system --set networking.enabled=true
+echo "************Now just change the line 341 of manifests/deploy.yml to the following*****************"
+echo "load-balancer.hetzner.cloud/location: $region"
+echo "After that run kubectl apply -f manifests/deploy.yml"
+echo "This Will Also enable an Ingress for you"
+echo "The Following is an output of kubectl get nodes command"
 kubectl get nodes
+echo "Run export KUBECONFIG=./kubeconfig"
+echo "The run connect.sh to connect to your kubernetes cluster"
+echo "To Disconnet from the cluster network run disconnect.sh"
 ./disconnect.sh > /dev/null 2>&1 &

@@ -11,7 +11,8 @@ if [ "$response" -eq 1 ]; then
     ssh-keygen -t ed25519 -C "$email" -f ./key -N ""
     chmod 400 ./key
     pubkey=$(cat ./key.pub | tr -d '\n')
-    private_key=./key
+    here=$(pwd)
+    private_key=$here/key
 elif [ "$response" -eq 2 ]; then
     echo "Enter the path of your ssh-key (We need the path to later run configurations on the server)"
     read private_key

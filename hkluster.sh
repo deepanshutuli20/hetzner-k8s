@@ -355,6 +355,6 @@ echo "This Will Also enable an Ingress for you"
 echo "The Following is an output of kubectl get nodes command"
 kubectl get nodes
 echo "Run export KUBECONFIG=./kubeconfig"
-echo "The run connect.sh to connect to your kubernetes cluster"
+echo "Then run connect.sh to connect to your kubernetes cluster"
 echo "To Disconnet from the cluster network run disconnect.sh"
 ./disconnect.sh > /dev/null 2>&1 &

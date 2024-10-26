@@ -22,10 +22,10 @@ else
     exit 1
 fi
 
-# echo "Enter API Token"
-# read api_token
-# Hetzner API token
-api_token=$(pass show hetzner/api-token)
+echo "Enter API Token"
+read api_token
+# # Hetzner API token
+# api_token=$(pass show hetzner/api-token)
 
 # Uploading SSH-Key to Hetzner account
 curl -X POST \
@@ -348,7 +348,7 @@ kubectl -n kube-system create secret generic hcloud --from-literal=token=$api_to
 helm repo add hcloud https://charts.hetzner.cloud
 helm repo update hcloud
 helm install hccm hcloud/hcloud-cloud-controller-manager -n kube-system --set networking.enabled=true
-echo "************Now just change the line 341 of manifests/deploy.yml to the following*****************"
+echo "************Now just change the line 341 of manifests/deploy.yaml to the following*****************"
 echo "load-balancer.hetzner.cloud/location: $region"
 echo "After that run kubectl apply -f manifests/deploy.yml"
 echo "This Will Also enable an Ingress for you"
